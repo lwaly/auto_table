@@ -103,6 +103,7 @@ private:
     void CreateGetCount(const struTable &stTable, string &strOutPutInc, string &strOutPutSrc);
     void CreateSerialize(const struTable &stTable, string &strOutPutInc, string &strOutPutSrc);
     void CreateClassVariables(const struTable &stTable, string &strOutPutInc, string &strOutPutSrc);
+    void CreateIsValid(const struTable &stTable, string &strOutPutInc, string &strOutPutSrc);
 
 private:
     map<string, struVarInfo> m_mapVarInfo;

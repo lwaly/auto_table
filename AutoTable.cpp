@@ -59,14 +59,14 @@ void AutoTable::Analysis(const char* szFile)
 
         strInc += "#include <string>\n\n"
             "using std::string;\n\n"
-            "#ifndef int8\n#define int8    char\n#endif\n\n"
-            "#ifndef uint8\n#define uint8    unsigned char\n#endif\n\n"
-            "#ifndef uint16\n#define uint16    short\n#endif\n\n"
-            "#ifndef uint16\n#define uint16    unsigned short\n#endif\n\n"
-            "#ifndef int32\n#define int32    int\n#endif\n\n"
-            "#ifndef uint32\n#define uint32    unsigned int\n#endif\n\n"
-            "#ifndef int64\n#define int64    long long\n#endif\n\n"
-            "#ifndef uint64\n#define uint64    unsigned long long\n#endif\n\n";
+            "#ifndef tb_int8\n#define tb_int8    char\n#endif\n\n"
+            "#ifndef tb_uint8\n#define tb_uint8    unsigned char\n#endif\n\n"
+            "#ifndef tb_uint16\n#define tb_uint16    short\n#endif\n\n"
+            "#ifndef tb_uint16\n#define tb_uint16    unsigned short\n#endif\n\n"
+            "#ifndef tb_int32\n#define tb_int32    int\n#endif\n\n"
+            "#ifndef tb_uint32\n#define tb_uint32    unsigned int\n#endif\n\n"
+            "#ifndef tb_int64\n#define tb_int64    long long\n#endif\n\n"
+            "#ifndef tb_uint64\n#define tb_uint64    unsigned long long\n#endif\n\n";
 
         strSrc = "#include <string.h>\n#include <sstream>\n\nusing std::stringstream;\n\n#include \"" + iter->strTable +".h\"\n\n";
 
@@ -99,20 +99,33 @@ int32 AutoTable::SplitStringByEnter(const string &strInput, vector<string> &vecC
     }
     vecContent.clear();
 
-    uint64 ullPos, ullHead = 0, ulltail = 0;
+    uint64 ullPos, ullHead = 0, ulltail = 0, ullWintail = 0, ullLinuxtail = 0;
     int32 loopstus = 1;
     string strLine;
+    uint32 uiStep; 
     while(loopstus)
     {
-        ulltail = strInput.find("\r\n", ullHead);
-        if(string::npos == ulltail)
+        //查找两种换行符格式
+        ullWintail = strInput.find("\r\n", ullHead);
+        ullLinuxtail = strInput.find("\n", ullHead);
+        if((string::npos == ullWintail) && (string::npos == ullLinuxtail))
         {
             loopstus = 0;
             ulltail = strInput.size();
         }
+        else if (string::npos != ullWintail)
+        {
+            ulltail = ullWintail;
+            uiStep = 2;
+        } 
+        else
+        {
+            ulltail = ullLinuxtail;
+            uiStep = 1;
+        }
 
         strLine = strInput.substr(ullHead, ulltail - ullHead);
-        ullHead = ulltail+2;
+        ullHead = ulltail + uiStep;
 
         //过滤tab
         SplitStringByTab(strLine);
@@ -345,6 +358,9 @@ int32 AutoTable::AnalysisTable(const struTable &stTable, string &strOutPutInc, s
     strOutPutInc += "\n";
     CreateClearHas(stTable, strOutPutInc, strOutPutSrc);
 
+    strOutPutInc += "\n";
+    CreateIsValid(stTable, strOutPutInc, strOutPutSrc);
+
     strOutPutInc += "\nprivate:\n";
     CreateClassVariables(stTable, strOutPutInc, strOutPutSrc);
 
@@ -379,11 +395,11 @@ void AutoTable::CreateCopyConstructor(const struTable &stTable, string &strOutPu
 {
     char szFun[FUNCTION_LENGTH] = {0};
 
-    snprintf(szFun, sizeof(szFun), "    %s(const %s &obj);\n", stTable.strTable.c_str(), stTable.strTable.c_str());
+    snprintf(szFun, sizeof(szFun), "    %s(const %s& obj);\n", stTable.strTable.c_str(), stTable.strTable.c_str());
     strOutPutInc += szFun;
 
     memset(szFun, 0, sizeof(szFun));
-    snprintf(szFun, sizeof(szFun), "%s::%s(const %s &obj)\n{\n", stTable.strTable.c_str(), stTable.strTable.c_str(), stTable.strTable.c_str());
+    snprintf(szFun, sizeof(szFun), "%s::%s(const %s& obj)\n{\n", stTable.strTable.c_str(), stTable.strTable.c_str(), stTable.strTable.c_str());
     strOutPutSrc += szFun;
     for (vector<struRow>::const_iterator iter = stTable.vecRow.begin(); iter != stTable.vecRow.end(); iter++)
     {
@@ -408,7 +424,7 @@ void AutoTable::CreateGetRowName(const struTable &stTable, string &strOutPutInc,
     for (vector<struRow>::const_iterator iter = stTable.vecRow.begin(); iter != stTable.vecRow.end(); iter++)
     {
         memset(szFun, 0, sizeof(szFun));
-        snprintf(szFun, sizeof(szFun), "    inline const char* col_%s() {return \"%s\";}\n", iter->strRowName.c_str(), iter->strRowName.c_str());
+        snprintf(szFun, sizeof(szFun), "    inline const char* col_%s() { return \"`%s`\"; }\n", iter->strRowName.c_str(), iter->strRowName.c_str());
         strOutPutInc += szFun;
     }
 }
@@ -417,7 +433,7 @@ void AutoTable::CreateTableName(const struTable &stTable, string &strOutPutInc, 
 {
     char szFun[FUNCTION_LENGTH] = {0};
 
-    snprintf(szFun, sizeof(szFun), "    inline const char* table_name() {return \"%s\";}\n", stTable.strTable.c_str());
+    snprintf(szFun, sizeof(szFun), "    inline const char* table_name() { return \"%s\"; }\n", stTable.strTable.c_str());
     strOutPutInc += szFun;
 }
 
@@ -443,13 +459,13 @@ void AutoTable::CreateSetRowValue(const struTable &stTable, string &strOutPutInc
         else
         {
             memset(szFun, 0, sizeof(szFun));
-            snprintf(szFun, sizeof(szFun), "    bool set_%s(const %s &value);\n", iter->strRowName.c_str(), iter->stVarInfo.strVarType.c_str());
+            snprintf(szFun, sizeof(szFun), "    bool set_%s(const %s& value);\n", iter->strRowName.c_str(), iter->stVarInfo.strVarType.c_str());
             strOutPutInc += szFun;
 
             memset(szFun, 0, sizeof(szFun));
-            snprintf(szFun, sizeof(szFun), "bool %s::set_%s(const %s &value)\n{\n    if (value.size() > %u) return false;\n    %s%s = value;\n    m_ui_has_bit |= 0x%08x;\n    return true;\n}\n\n",
-                stTable.strTable.c_str(), iter->strRowName.c_str(), iter->stVarInfo.strVarType.c_str(),
-                iter->uiLength, iter->stVarInfo.strVarPre.c_str(), iter->strRowName.c_str(), 1 << uiIndex);
+            snprintf(szFun, sizeof(szFun), "bool %s::set_%s(const %s& value)\n{\n    if (value.size() > %u)\n    {\n        m_ui_has_bit &= ~0x%08x;\n        return false;\n    }\n    %s%s = value;\n    m_ui_has_bit |= 0x%08x;\n    return true;\n}\n\n",
+                stTable.strTable.c_str(), iter->strRowName.c_str(), iter->stVarInfo.strVarType.c_str(), iter->uiLength,
+                1 << uiIndex, iter->stVarInfo.strVarPre.c_str(), iter->strRowName.c_str(), 1 << uiIndex);
             strOutPutSrc += szFun;
 
             memset(szFun, 0, sizeof(szFun));
@@ -457,8 +473,8 @@ void AutoTable::CreateSetRowValue(const struTable &stTable, string &strOutPutInc
             strOutPutInc += szFun;
 
             memset(szFun, 0, sizeof(szFun));
-            snprintf(szFun, sizeof(szFun), "bool %s::set_%s(const char* value, size_t size)\n{\n    if (size > %u) return false;\n    %s%s.assign(value, size);\n    m_ui_has_bit |= 0x%08x;\n    return true;\n}\n\n",
-                stTable.strTable.c_str(), iter->strRowName.c_str(), iter->uiLength,
+            snprintf(szFun, sizeof(szFun), "bool %s::set_%s(const char* value, size_t size)\n{\n    if (size > %u)\n    {\n        m_ui_has_bit &= ~0x%08x;\n        return false;\n    }\n    %s%s.assign(value, size);\n    m_ui_has_bit |= 0x%08x;\n    return true;\n}\n\n",
+                stTable.strTable.c_str(), iter->strRowName.c_str(), iter->uiLength, iter->uiLength,
                 iter->stVarInfo.strVarPre.c_str(), iter->strRowName.c_str(), 1 << uiIndex);
             strOutPutSrc += szFun;
 
@@ -467,8 +483,8 @@ void AutoTable::CreateSetRowValue(const struTable &stTable, string &strOutPutInc
             strOutPutInc += szFun;
 
             memset(szFun, 0, sizeof(szFun));
-            snprintf(szFun, sizeof(szFun), "bool %s::set_%s(const char* value)\n{\n    if (strlen(value) > %u) return false;\n    %s%s = value;\n    m_ui_has_bit |= 0x%08x;\n    return true;\n}\n\n",
-                stTable.strTable.c_str(), iter->strRowName.c_str(), iter->uiLength,
+            snprintf(szFun, sizeof(szFun), "bool %s::set_%s(const char* value)\n{\n    if (strlen(value) > %u)\n    {\n        m_ui_has_bit &= ~0x%08x;\n        return false;\n    }\n    %s%s = value;\n    m_ui_has_bit |= 0x%08x;\n    return true;\n}\n\n",
+                stTable.strTable.c_str(), iter->strRowName.c_str(), iter->uiLength, iter->uiLength,
                 iter->stVarInfo.strVarPre.c_str(), iter->strRowName.c_str(), 1 << uiIndex);
             strOutPutSrc += szFun;
         }
@@ -484,11 +500,11 @@ void AutoTable::CreateGetRowValue(const struTable &stTable, string &strOutPutInc
         memset(szFun, 0, sizeof(szFun));
         if (0 != iter->stVarInfo.strVarType.compare(szString))
         {
-            snprintf(szFun, sizeof(szFun), "    inline %s %s() {return %s%s;}\n", iter->stVarInfo.strVarType.c_str(), iter->strRowName.c_str(), iter->stVarInfo.strVarPre.c_str(), iter->strRowName.c_str());
+            snprintf(szFun, sizeof(szFun), "    inline %s %s() { return %s%s; }\n", iter->stVarInfo.strVarType.c_str(), iter->strRowName.c_str(), iter->stVarInfo.strVarPre.c_str(), iter->strRowName.c_str());
         } 
         else
         {
-            snprintf(szFun, sizeof(szFun), "    inline const %s &%s() {return %s%s;}\n", iter->stVarInfo.strVarType.c_str(), iter->strRowName.c_str(), iter->stVarInfo.strVarPre.c_str(), iter->strRowName.c_str());
+            snprintf(szFun, sizeof(szFun), "    inline const %s& %s() { return %s%s; }\n", iter->stVarInfo.strVarType.c_str(), iter->strRowName.c_str(), iter->stVarInfo.strVarPre.c_str(), iter->strRowName.c_str());
         }
 
         strOutPutInc += szFun;
@@ -502,7 +518,7 @@ void AutoTable::CreateHas(const struTable &stTable, string &strOutPutInc, string
     for (vector<struRow>::const_iterator iter = stTable.vecRow.begin(); iter != stTable.vecRow.end(); iter++)
     {
         memset(szFun, 0, sizeof(szFun));
-        snprintf(szFun, sizeof(szFun), "    inline bool has_%s() {return (m_ui_has_bit & 0x%08x) != 0;}\n", iter->strRowName.c_str(), 1 << uiIndex);
+        snprintf(szFun, sizeof(szFun), "    inline bool has_%s() { return (m_ui_has_bit & 0x%08x) != 0; }\n", iter->strRowName.c_str(), 1 << uiIndex);
         strOutPutInc += szFun;
         uiIndex++;
     }
@@ -515,7 +531,7 @@ void AutoTable::CreateClearHas(const struTable &stTable, string &strOutPutInc, s
     for (vector<struRow>::const_iterator iter = stTable.vecRow.begin(); iter != stTable.vecRow.end(); iter++)
     {
         memset(szFun, 0, sizeof(szFun));
-        snprintf(szFun, sizeof(szFun), "    inline void clear_has_%s() {m_ui_has_bit &= ~0x%08x;}\n", iter->strRowName.c_str(), 1 << uiIndex);
+        snprintf(szFun, sizeof(szFun), "    inline void clear_has_%s() { m_ui_has_bit &= ~0x%08x; }\n", iter->strRowName.c_str(), 1 << uiIndex);
         strOutPutInc += szFun;
         uiIndex++;
     }
@@ -525,11 +541,11 @@ void AutoTable::CreateOperatorEqual(const struTable &stTable, string &strOutPutI
 {
     char szFun[FUNCTION_LENGTH] = {0};
 
-    snprintf(szFun, sizeof(szFun), "    %s & operator = (const %s &obj);\n", stTable.strTable.c_str(), stTable.strTable.c_str());
+    snprintf(szFun, sizeof(szFun), "    %s& operator = (const %s& obj);\n", stTable.strTable.c_str(), stTable.strTable.c_str());
     strOutPutInc += szFun;
 
     memset(szFun, 0, sizeof(szFun));
-    snprintf(szFun, sizeof(szFun), "%s & %s::operator =(const %s &obj)\n{\n    if (this == &obj) return *this;\n", stTable.strTable.c_str(), stTable.strTable.c_str(), stTable.strTable.c_str());
+    snprintf(szFun, sizeof(szFun), "%s& %s::operator =(const %s& obj)\n{\n    if (this == &obj) return *this;\n", stTable.strTable.c_str(), stTable.strTable.c_str(), stTable.strTable.c_str());
     strOutPutSrc += szFun;
     for (vector<struRow>::const_iterator iter = stTable.vecRow.begin(); iter != stTable.vecRow.end(); iter++)
     {
@@ -544,7 +560,7 @@ void AutoTable::CreateGetCount(const struTable &stTable, string &strOutPutInc, s
 {
     char szFun[FUNCTION_LENGTH] = {0};
 
-    snprintf(szFun, sizeof(szFun), "    inline uint32 get_count() {return %ld;}\n", stTable.vecRow.size());
+    snprintf(szFun, sizeof(szFun), "    inline tb_uint32 get_count() { return %ld; }\n", stTable.vecRow.size());
     strOutPutInc += szFun;
 }
 
@@ -578,7 +594,7 @@ void AutoTable::CreateSerialize(const struTable &stTable, string &strOutPutInc, 
 void AutoTable::CreateClassVariables(const struTable &stTable, string &strOutPutInc, string &strOutPutSrc)
 {
     char szFun[FUNCTION_LENGTH] = {0};
-    strOutPutInc += "    uint32 m_ui_has_bit;\n";
+    strOutPutInc += "    tb_uint32 m_ui_has_bit;\n";
 
     for (vector<struRow>::const_iterator iter = stTable.vecRow.begin(); iter != stTable.vecRow.end(); iter++)
     {
@@ -590,14 +606,14 @@ void AutoTable::CreateClassVariables(const struTable &stTable, string &strOutPut
 
 void AutoTable::Init()
 {
-    AddVarInfo("tinyint", "m_c_", "int8");
-    AddVarInfo("tinyint unsigned", "m_uc_", "uint8");
-    AddVarInfo("smallint", "m_s_", "int16");
-    AddVarInfo("smallint unsigned", "m_us_", "uint16");
-    AddVarInfo("int", "m_i_", "int32");
-    AddVarInfo("int unsigned", "m_ui_", "uint32");
-    AddVarInfo("bigint", "m_ll_", "int64");
-    AddVarInfo("bigint unsigned", "m_ull_", "uint64");
+    AddVarInfo("tinyint", "m_c_", "tb_int8");
+    AddVarInfo("tinyint unsigned", "m_uc_", "tb_uint8");
+    AddVarInfo("smallint", "m_s_", "tb_int16");
+    AddVarInfo("smallint unsigned", "m_us_", "tb_uint16");
+    AddVarInfo("int", "m_i_", "tb_int32");
+    AddVarInfo("int unsigned", "m_ui_", "tb_uint32");
+    AddVarInfo("bigint", "m_ll_", "tb_int64");
+    AddVarInfo("bigint unsigned", "m_ull_", "tb_uint64");
     AddVarInfo("float", "m_f_", "float");
     AddVarInfo("double", "m_d_", "double");
 
@@ -621,4 +637,21 @@ void AutoTable::AddVarInfo(const char * szRowType, const char * szVarPre, const 
     {
         ERRORLOG("repeat add.%s", szRowType);
     }
+}
+
+void AutoTable::CreateIsValid(const struTable &stTable, string &strOutPutInc, string &strOutPutSrc)
+{
+    int32 iTemp;
+    int32 iMask = 0;
+
+    for (size_t size = 0; size != stTable.vecRow.size(); ++size)
+    {
+        iTemp = iMask;
+        iMask = 1 << size;
+        iMask += iTemp;
+    }
+    char szFun[FUNCTION_LENGTH] = {0};
+    snprintf(szFun, sizeof(szFun), "    inline bool IsValid() {return (m_ui_has_bit & 0x%08x) != 0;}\n", iMask);
+
+    strOutPutInc += szFun;
 }
